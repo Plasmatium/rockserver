@@ -12,7 +12,10 @@ use axum::{
 };
 use tracing::info;
 
-use crate::{config::Config, proxy::proxy_handler};
+use crate::{
+    config::Config,
+    proxy::{get_cache_json, post_cache_json, proxy_handler},
+};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -21,9 +24,13 @@ async fn main() -> Result<()> {
     let config = Config::from_file(fname);
     info!("config loaded, path: {fname}, content:\n{:?}", config);
     let app = Router::new()
-        .route("/", get(index_handler))
+        .route("/about", get(about_handler))
         .fallback(any(proxy_handler))
-        .layer(Extension(Arc::new(config)));
+        .layer(Extension(Arc::new(config)))
+        .route(
+            "/rockserver/config.json",
+            get(get_cache_json).post(post_cache_json),
+        );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     info!("listening on {addr}");
@@ -33,6 +40,6 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn index_handler() -> &'static str {
-    return "hello world";
+async fn about_handler() -> &'static str {
+    return "rockserver for mock server and cache server";
 }

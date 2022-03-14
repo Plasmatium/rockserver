@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use axum::{body::Bytes, extract::Extension, http::HeaderValue};
-use hyper::{Body, HeaderMap, Request, Response, StatusCode};
+use axum::{body::Bytes, extract::Extension, http::{HeaderValue, self}, response::Response};
+use hyper::{Body, HeaderMap, Request, StatusCode};
 use reqwest::Client;
 
 use crate::{
@@ -15,8 +15,8 @@ lazy_static! {
 }
 
 pub async fn proxy_handler(
-    mut req: Request<Body>,
     Extension(config): Extension<Arc<Config>>,
+    mut req: Request<Body>,
 ) -> Response<Body> {
     let key = CacheKey::read_from_req(&mut req).await;
     let store = &GLOBAL_STORE.0;
@@ -64,4 +64,13 @@ fn make_resp(headers: HeaderMap, status_code: StatusCode, body: Bytes) -> Respon
     *resp.headers_mut() = headers;
     *resp.status_mut() = status_code;
     resp
+}
+
+
+pub async fn get_cache_json() -> Response<Body> {
+    todo!()
+}
+
+pub async fn post_cache_json() -> (http::StatusCode, String) {
+    todo!()
 }

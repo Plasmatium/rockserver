@@ -168,6 +168,7 @@ dependencies = [
  "cfg-if",
  "num_cpus",
  "parking_lot",
+ "serde",
 ]
 
 [[package]]
