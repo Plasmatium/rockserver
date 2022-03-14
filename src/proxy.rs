@@ -3,6 +3,7 @@ use std::sync::Arc;
 use axum::{body::Bytes, extract::Extension, http::{HeaderValue, self}, response::Response};
 use hyper::{Body, HeaderMap, Request, StatusCode};
 use reqwest::Client;
+use tracing::debug;
 
 use crate::{
     config::Config,
@@ -32,12 +33,13 @@ pub async fn proxy_handler(
         *req.uri_mut() = uri_parts.try_into().unwrap();
 
         let body = key.get_body();
+        debug!("body length: {}", body.len());
         let mut headers = req.headers().clone();
         headers.remove("host");
         let url: String = req.uri().to_string();
         let ret_resp = CLIENT
             .request(req.method().clone(), url)
-            .body(body)
+            .body(body.clone())
             .headers(headers)
             .send()
             .await

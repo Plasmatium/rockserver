@@ -11,6 +11,7 @@ use axum::{
     Router,
 };
 use tracing::info;
+use tracing_subscriber::{util::SubscriberInitExt, EnvFilter, FmtSubscriber};
 
 use crate::{
     config::Config,
@@ -19,7 +20,9 @@ use crate::{
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt::init();
+    let filter = EnvFilter::try_from_env("LOG_LEVEL").unwrap_or(EnvFilter::from("DEBUG"));
+    FmtSubscriber::builder().with_env_filter(filter).finish().init();
+
     let fname = "config.yaml";
     let config = Config::from_file(fname);
     info!("config loaded, path: {fname}, content:\n{:?}", config);

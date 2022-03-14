@@ -1,25 +1,28 @@
+
+use std::io::{ Read};
+
 use axum::body::{Bytes, HttpBody};
+use bytes::Buf;
 use dashmap::DashMap;
-use hyper::{Body, HeaderMap, Method, Request, StatusCode};
+use hyper::{Body, HeaderMap, Method, Request, StatusCode, body::to_bytes};
 use lazy_static::lazy_static;
+use tracing::info;
 
 // CacheKey, (method, path, body)
 #[derive(PartialEq, Eq, Hash)]
-pub struct CacheKey(Method, String, Option<Bytes>);
+pub struct CacheKey(Method, String, Bytes);
 
 impl CacheKey {
     pub async fn read_from_req(req: &mut Request<Body>) -> Self {
         let method = req.method().clone();
         let path = req.uri().path().to_string();
-        let body = req.body_mut().data().await.map(|result| result.unwrap());
+
+        let body = to_bytes(req.body_mut()).await.expect("read body failed");
         Self(method, path, body)
     }
 
-    pub fn get_body(&self) -> Bytes {
-        match &self.2 {
-            Some(bs) => bs.clone(),
-            None => Bytes::new(),
-        }
+    pub fn get_body(&self) -> &Bytes {
+        &self.2
     }
 }
 
