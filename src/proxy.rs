@@ -22,9 +22,9 @@ pub async fn proxy_handler(
     let key = CacheKey::read_from_req(&mut req).await;
     let store = &GLOBAL_STORE.0;
     if let Some(entry) = store.get(&key) {
-        let CacheValue(mut headers, status_code, resp_bs, _) = entry.value().clone();
+        let CacheValue{mut headers, status_code, body_bs, ..} = entry.value().clone();
         headers.insert("x-rockserver", HeaderValue::from_static("hit"));
-        make_resp(headers, status_code, resp_bs)
+        make_resp(headers, status_code, body_bs)
     } else {
         let mut uri_parts = req.uri().clone().into_parts();
         let Config { proxy, .. } = config.as_ref();
@@ -48,12 +48,12 @@ pub async fn proxy_handler(
         let status_code = ret_resp.status();
         let mut headers = ret_resp.headers().clone();
         let resp_bs = ret_resp.bytes().await.unwrap();
-        let val = CacheValue(
-            headers.clone(),
+        let val = CacheValue{
+            headers: headers.clone(),
             status_code,
-            resp_bs.clone(),
-            Default::default(),
-        );
+            body_bs: resp_bs.clone(),
+            cache_config: Default::default(),
+        };
         store.insert(key, val);
         headers.insert("x-rockserver", HeaderValue::from_static("miss"));
         make_resp(headers, status_code, resp_bs)
