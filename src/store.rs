@@ -6,8 +6,16 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 
 // CacheKey, (method, path, body)
-#[derive(PartialEq, Eq, Hash)]
-pub struct CacheKey(Method, String, Bytes);
+#[derive(PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct CacheKey(
+    #[serde(with = "serde_store::method")]
+    Method,
+
+    String,
+
+    #[serde(with = "serde_store::body_bs")]
+    Bytes
+);
 
 impl CacheKey {
     pub async fn read_from_req(req: &mut Request<Body>) -> Self {
@@ -43,7 +51,7 @@ pub struct CacheConfig {
     pub match_headers: Vec<String>,
 }
 
-#[derive(Default)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct Store(pub DashMap<CacheKey, CacheValue>);
 
 impl Store {}
@@ -131,6 +139,28 @@ pub mod serde_store {
             String::from_utf8(bs)
                 .unwrap_or("invalid utf8 bytes".to_string())
                 .serialize(serializer)
+        }
+    }
+
+    pub mod method {
+        use std::str::FromStr;
+
+        use hyper::Method;
+        use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
+
+        pub fn deserialize<'de, D>(deserializer: D) -> Result<Method, D::Error>
+        where
+            D: Deserializer<'de>,
+        {
+            let raw = String::deserialize(deserializer)?;
+            Method::from_str(&raw).map_err(D::Error::custom)
+        }
+
+        pub fn serialize<S>(value: &Method, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: Serializer,
+        {
+            value.to_string().serialize(serializer)
         }
     }
 }
