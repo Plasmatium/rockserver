@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use axum::{body::Bytes, extract::Extension, http::{HeaderValue, self}, response::Response};
+use axum::{body::Bytes, extract::Extension, http::HeaderValue, response::Response};
 use hyper::{Body, HeaderMap, Request, StatusCode};
 use reqwest::Client;
 use tracing::debug;
@@ -22,7 +22,12 @@ pub async fn proxy_handler(
     let key = CacheKey::read_from_req(&mut req).await;
     let store = &GLOBAL_STORE.0;
     if let Some(entry) = store.get(&key) {
-        let CacheValue{mut headers, status_code, body_bs, ..} = entry.value().clone();
+        let CacheValue {
+            mut headers,
+            status_code,
+            body_bs,
+            ..
+        } = entry.value().clone();
         headers.insert("x-rockserver", HeaderValue::from_static("hit"));
         make_resp(headers, status_code, body_bs)
     } else {
@@ -48,7 +53,7 @@ pub async fn proxy_handler(
         let status_code = ret_resp.status();
         let mut headers = ret_resp.headers().clone();
         let resp_bs = ret_resp.bytes().await.unwrap();
-        let val = CacheValue{
+        let val = CacheValue {
             headers: headers.clone(),
             status_code,
             body_bs: resp_bs.clone(),
@@ -66,13 +71,4 @@ fn make_resp(headers: HeaderMap, status_code: StatusCode, body: Bytes) -> Respon
     *resp.headers_mut() = headers;
     *resp.status_mut() = status_code;
     resp
-}
-
-
-pub async fn get_cache_json() -> Response<Body> {
-    todo!()
-}
-
-pub async fn post_cache_json() -> (http::StatusCode, String) {
-    todo!()
 }

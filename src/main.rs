@@ -1,6 +1,9 @@
 mod config;
 mod proxy;
 mod store;
+mod store_api;
+mod cache;
+mod serde_cache;
 
 use std::{net::SocketAddr, sync::Arc};
 
@@ -15,13 +18,17 @@ use tracing_subscriber::{util::SubscriberInitExt, EnvFilter, FmtSubscriber};
 
 use crate::{
     config::Config,
-    proxy::{get_cache_json, post_cache_json, proxy_handler},
+    proxy::proxy_handler,
+    store_api::{get_cache_json, post_cache_json},
 };
 
 #[tokio::main]
 async fn main() -> Result<()> {
     let filter = EnvFilter::try_from_env("LOG_LEVEL").unwrap_or(EnvFilter::from("DEBUG"));
-    FmtSubscriber::builder().with_env_filter(filter).finish().init();
+    FmtSubscriber::builder()
+        .with_env_filter(filter)
+        .finish()
+        .init();
 
     let fname = "config.yaml";
     let config = Config::from_file(fname);
