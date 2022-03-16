@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{body::Bytes, extract::Extension, http::HeaderValue, response::Response};
-use hyper::{Body, HeaderMap, Request, StatusCode};
+use hyper::{Body, HeaderMap, Request, StatusCode, header::CONTENT_LENGTH};
 use reqwest::Client;
 
 use crate::{
@@ -65,6 +65,7 @@ pub async fn proxy_handler(
         "x-rockserver-id",
         HeaderValue::from_str(&md5).expect("md5 contains non ascii code"),
     );
+    headers.remove(CONTENT_LENGTH);
     let resp_bs = ret_resp.bytes().await.expect("read resp body failed");
     let body: TaggedBody = (&resp_bs).into();
 

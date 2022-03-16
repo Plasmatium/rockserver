@@ -2,7 +2,7 @@ use axum::{http, Json};
 use dashmap::DashMap;
 use hyper::StatusCode;
 
-use crate::cache::{GLOBAL_CACHE, Cache, CacheObject, replace_global_cache};
+use crate::cache::{GLOBAL_CACHE, CacheObject, replace_global_cache};
 
 
 /**

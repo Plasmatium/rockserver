@@ -1,4 +1,3 @@
-use anyhow::Result;
 use axum::http::{uri::PathAndQuery, HeaderValue};
 use bytes::Bytes;
 use dashmap::DashMap;
