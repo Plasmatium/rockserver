@@ -68,7 +68,11 @@ pub struct CacheReqParts {
 
 impl CacheReqParts {
     pub fn get_md5(&self) -> String {
-        let digest = md5::compute(&self.body);
+        let method_bs: &[u8] = self.method.as_str().as_ref();
+        let path: &[u8] = self.path.as_str().as_ref();
+        let body: &[u8] = self.body.as_ref();
+        let all = [method_bs, path, body].concat();
+        let digest = md5::compute(&all);
         format!("{:x}", digest)
     }
 }

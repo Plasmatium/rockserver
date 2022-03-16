@@ -1,7 +1,8 @@
 use axum::{http, Json};
+use dashmap::DashMap;
 use hyper::StatusCode;
 
-use crate::cache::GLOBAL_CACHE;
+use crate::cache::{GLOBAL_CACHE, Cache, CacheObject, replace_global_cache};
 
 
 /**
@@ -11,14 +12,12 @@ use crate::cache::GLOBAL_CACHE;
  * POST /rockserver/cache.json
  */
 
-pub async fn get_cache_json() -> (StatusCode, Json<String>) {
-    let store = &GLOBAL_CACHE.0;
-    match serde_json::to_string_pretty(store) {
-        Ok(body) => (StatusCode::OK, Json(body)),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, Json(e.to_string())),
-    }
+pub async fn get_cache_json() -> Json<&'static DashMap<String, CacheObject>> {
+    let cache = &GLOBAL_CACHE.0;
+    Json(cache)
 }
 
-pub async fn post_cache_json(Json(cache_body): Json<String>) -> (http::StatusCode, String) {
-    todo!()
+pub async fn post_cache_json(Json(new_cache): Json<DashMap<String, CacheObject>>) -> http::StatusCode {
+    replace_global_cache(&new_cache);
+    StatusCode::ACCEPTED
 }
