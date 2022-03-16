@@ -15,6 +15,7 @@ pub enum TaggedBody {
 
 impl From<&Bytes> for TaggedBody {
     fn from(bs: &Bytes) -> Self {
+        let bs = bs.as_ref();
         let converted = String::from_utf8(bs.to_vec());
         match converted {
             Ok(data) => TaggedBody::String(data),
@@ -26,8 +27,21 @@ impl From<&Bytes> for TaggedBody {
     }
 }
 
+impl From<&TaggedBody> for Bytes {
+    fn from(tb: &TaggedBody) -> Self {
+        match tb {
+            TaggedBody::String(body) => Bytes::copy_from_slice(body.as_bytes()),
+            TaggedBody::Base64(body) => {
+                let decoded =
+                    base64::decode(body).unwrap_or(b"failed to decode base64 body".to_vec());
+                Bytes::from(decoded)
+            }
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
-pub struct CacheParts {
+pub struct CacheReqParts {
     #[serde(with = "crate::serde_cache::method")]
     pub method: Method,
 
@@ -42,7 +56,7 @@ pub struct CacheParts {
     pub body: TaggedBody,
 }
 
-impl CacheParts {
+impl CacheReqParts {
     pub fn get_md5(&self) -> Result<String> {
         let json_str = serde_json::to_string(self)?;
         let digest = md5::compute(json_str);
@@ -57,8 +71,11 @@ pub struct CacheConfig {
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct CacheObject {
-    pub request: CacheParts,
-    pub reponse: Option<CacheParts>,
+    pub request: CacheReqParts,
+    pub response_body: TaggedBody,
+
+    #[serde(with = "crate::serde_cache::header_map")]
+    pub response_headers: HeaderMap<HeaderValue>,
 
     #[serde(with = "crate::serde_cache::status_code")]
     pub status_code: StatusCode,
@@ -66,13 +83,16 @@ pub struct CacheObject {
 }
 
 impl CacheObject {
-    pub async fn find_by_req(req: &mut Request<Body>) -> Result<(Option<Self>, String)> {
+    pub async fn find_by_req(
+        req: &mut Request<Body>,
+    ) -> Result<(Option<Self>, CacheReqParts, String)> {
         let method = req.method().clone();
         let headers = req.headers().clone();
         let query = req.uri().path_and_query().map(Clone::clone);
         let path = req.uri().path().to_string();
-        let body: TaggedBody = (&to_bytes(req.body_mut()).await.expect("read body failed")).into();
-        let req_parts = CacheParts {
+        let body = to_bytes(req.body_mut()).await.expect("read body failed");
+        let body = (&body).into();
+        let req_parts = CacheReqParts {
             method,
             headers,
             query,
@@ -81,61 +101,27 @@ impl CacheObject {
         };
 
         let md5 = req_parts.get_md5()?;
-        let ret = GLOBAL_CACHE.get(&md5).map(|r| r.value().clone());
-        Ok((ret, md5))
+        let ret = GLOBAL_CACHE.0.get(&md5).map(|r| r.value().clone());
+        Ok((ret, req_parts, md5))
     }
 
     pub fn add_record_by_md5(self, md5: String) {
-        GLOBAL_CACHE.insert(md5, self);
+        GLOBAL_CACHE.0.insert(md5, self);
     }
 }
+
+#[derive(Serialize, Deserialize, Default)]
+pub struct Cache(pub DashMap<String, CacheObject>);
 
 lazy_static! {
-    pub static ref GLOBAL_CACHE: DashMap<String, CacheObject> = Default::default();
+    pub static ref GLOBAL_CACHE: Cache = Default::default();
 }
 
-#[cfg(test)]
-mod tests {
-    use crate::store::GLOBAL_STORE;
-    use serde::{Deserialize, Serialize};
-    use std::hash::{BuildHasher, Hasher};
-
-    #[test]
-    fn test_hash() {
-        let store = &GLOBAL_STORE.0;
-        let mut h = store.hasher().build_hasher();
-        h.write(b"asfdf");
-        let s = h.finish();
-        println!("{s}")
-    }
-
-    #[derive(Deserialize, Serialize)]
-    enum TTT {
-        Base64(String),
-        Str(String),
-    }
-
-    #[derive(Deserialize, Serialize)]
-    struct AAA {
-        f1: String,
-        f2: TTT,
-    }
-
-    #[test]
-    fn test_serde1() {
-        let value = AAA {
-            f1: "asdf".into(),
-            f2: TTT::Base64("asdf".into()),
-        };
-        let ret = serde_json::to_string_pretty(&value).unwrap();
-        println!("{ret}")
-    }
-
-    #[test]
-    fn test_md5() {
-        let a = b"some data\n";
-        let digest = md5::compute(a);
-        let d = format!("{:x}", digest);
-        println!("{d}")
-    }
+pub fn replace_global_cache(new_cache: &DashMap<String, CacheObject>) {
+    let cache = &GLOBAL_CACHE.0;
+    cache.clear();
+    new_cache.iter().for_each(|e| {
+        let (k, v) = e.pair();
+        cache.insert(k.clone(), v.clone());
+    });
 }

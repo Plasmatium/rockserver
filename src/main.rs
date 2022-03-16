@@ -1,7 +1,6 @@
 mod config;
 mod proxy;
-mod store;
-mod store_api;
+mod cache_api;
 mod cache;
 mod serde_cache;
 
@@ -19,7 +18,7 @@ use tracing_subscriber::{util::SubscriberInitExt, EnvFilter, FmtSubscriber};
 use crate::{
     config::Config,
     proxy::proxy_handler,
-    store_api::{get_cache_json, post_cache_json},
+    cache_api::{get_cache_json, post_cache_json},
 };
 
 #[tokio::main]
@@ -38,7 +37,7 @@ async fn main() -> Result<()> {
         .fallback(any(proxy_handler))
         .layer(Extension(Arc::new(config)))
         .route(
-            "/rockserver/config.json",
+            "/rockserver/cache.json",
             get(get_cache_json).post(post_cache_json),
         );
 
