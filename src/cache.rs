@@ -40,6 +40,16 @@ impl From<&TaggedBody> for Bytes {
     }
 }
 
+impl AsRef<[u8]> for TaggedBody {
+    fn as_ref(&self) -> &[u8] {
+        let data = match self {
+            TaggedBody::Base64(d) => d,
+            TaggedBody::String(d) => d,
+        };
+        data.as_ref()
+    }
+}
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct CacheReqParts {
     #[serde(with = "crate::serde_cache::method")]
@@ -57,10 +67,9 @@ pub struct CacheReqParts {
 }
 
 impl CacheReqParts {
-    pub fn get_md5(&self) -> Result<String> {
-        let json_str = serde_json::to_string(self)?;
-        let digest = md5::compute(json_str);
-        Ok(format!("{:x}", digest))
+    pub fn get_md5(&self) -> String {
+        let digest = md5::compute(&self.body);
+        format!("{:x}", digest)
     }
 }
 
@@ -85,7 +94,7 @@ pub struct CacheObject {
 impl CacheObject {
     pub async fn find_by_req(
         req: &mut Request<Body>,
-    ) -> Result<(Option<Self>, CacheReqParts, String)> {
+    ) -> (Option<Self>, CacheReqParts, String) {
         let method = req.method().clone();
         let headers = req.headers().clone();
         let query = req.uri().path_and_query().map(Clone::clone);
@@ -100,9 +109,9 @@ impl CacheObject {
             body,
         };
 
-        let md5 = req_parts.get_md5()?;
+        let md5 = req_parts.get_md5();
         let ret = GLOBAL_CACHE.0.get(&md5).map(|r| r.value().clone());
-        Ok((ret, req_parts, md5))
+        (ret, req_parts, md5)
     }
 
     pub fn add_record_by_md5(self, md5: String) {

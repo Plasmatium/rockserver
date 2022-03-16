@@ -18,24 +18,16 @@ pub async fn proxy_handler(
     Extension(config): Extension<Arc<Config>>,
     mut req: Request<Body>,
 ) -> Response<Body> {
-    let result = CacheObject::find_by_req(&mut req).await;
-    if let Err(e) = result {
-        return make_resp(
-            HeaderMap::default(),
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Bytes::from(e.to_string()),
-        );
-    }
-
-    let (cached, req_parts, md5) = result.unwrap();
+    let (cached, req_parts, md5) = CacheObject::find_by_req(&mut req).await;
     if let Some(CacheObject {
         ref response_body,
-        response_headers,
+        mut response_headers,
         status_code,
         ..
     }) = cached
     {
         let body: Bytes = response_body.into();
+        response_headers.insert("x-rockserver", HeaderValue::from_static("hit"));
         return make_resp(response_headers, status_code, body);
     }
 
@@ -73,10 +65,7 @@ pub async fn proxy_handler(
         "x-rockserver-id",
         HeaderValue::from_str(&md5).expect("md5 contains non ascii code"),
     );
-    let resp_bs = ret_resp
-        .bytes()
-        .await
-        .expect("read resp body failed");
+    let resp_bs = ret_resp.bytes().await.expect("read resp body failed");
     let body: TaggedBody = (&resp_bs).into();
 
     let cached = CacheObject {
