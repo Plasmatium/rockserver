@@ -14,10 +14,7 @@ pub mod header_map {
         return Ok(headermap);
     }
 
-    pub fn serialize<S>(
-        value: &HeaderMap<HeaderValue>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
+    pub fn serialize<S>(value: &HeaderMap<HeaderValue>, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
@@ -90,7 +87,7 @@ pub mod query {
     {
         let raw = Option::<String>::deserialize(deserializer)?;
         if raw.is_none() {
-            return Ok(None)
+            return Ok(None);
         }
         let raw = raw.unwrap();
         let query = PathAndQuery::from_str(&raw).map_err(D::Error::custom)?;
@@ -101,6 +98,31 @@ pub mod query {
     where
         S: Serializer,
     {
-        value.as_ref().map(ToString::to_string).serialize(serializer)
+        value
+            .as_ref()
+            .map(ToString::to_string)
+            .serialize(serializer)
+    }
+}
+
+pub mod bytes {
+    use std::str::FromStr;
+
+    use axum::http::uri::PathAndQuery;
+    use bytes::Bytes;
+    use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Bytes, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        todo!();
+    }
+
+    pub fn serialize<S>(value: &Bytes, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        todo!();
     }
 }

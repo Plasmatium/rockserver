@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use axum::{body::Bytes, extract::Extension, http::HeaderValue, response::Response};
-use hyper::{Body, HeaderMap, Request, StatusCode, header::CONTENT_LENGTH};
+use hyper::{header::CONTENT_LENGTH, Body, HeaderMap, Request, StatusCode};
 use reqwest::Client;
 
 use crate::{
@@ -14,23 +14,32 @@ lazy_static! {
     static ref CLIENT: Client = Client::new();
 }
 
+/// Proxy the resquest and store the response. The stored response will be sent immedietly next time
+/// if the request matched.
+/// step 1. construct the request parts and caculated the md5 for store key
+/// step 2. return if request matched
+/// step 3. else proxy the request to remote
+/// step 4. store the response from the remote
+/// step 5. send response back to client
 pub async fn proxy_handler(
     Extension(config): Extension<Arc<Config>>,
     mut req: Request<Body>,
 ) -> Response<Body> {
+    // step 1. construct the request parts and caculated the md5 for store key
     let (cached, req_parts, md5) = CacheObject::find_by_req(&mut req).await;
     if let Some(CacheObject {
-        ref response_body,
+        response_body,
         mut response_headers,
         status_code,
         ..
     }) = cached
     {
-        let body: Bytes = response_body.into();
+        // step 2. return if request matched
         response_headers.insert("x-rockserver", HeaderValue::from_static("hit"));
-        return make_resp(response_headers, status_code, body);
+        return make_resp(response_headers, status_code, response_body);
     }
 
+    // step 3. else proxy the request to remote
     let CacheReqParts {
         ref headers,
         ref body,
@@ -44,11 +53,10 @@ pub async fn proxy_handler(
     let mut headers = headers.clone();
     headers.remove("host");
     let url: String = req.uri().to_string();
-    let body: Bytes = body.into();
     let ret_resp = CLIENT
         .request(req.method().clone(), url)
-        .body(body)
-        .headers(headers)
+        .body(body.clone())
+        .headers(headers.clone())
         .send()
         .await;
     if let Err(e) = ret_resp {
@@ -58,6 +66,8 @@ pub async fn proxy_handler(
             Bytes::from(e.to_string()),
         );
     }
+
+    // step 4. store the response from the remote
     let ret_resp = ret_resp.unwrap();
     let status_code = ret_resp.status();
     let mut headers = ret_resp.headers().clone();
@@ -65,21 +75,22 @@ pub async fn proxy_handler(
         "x-rockserver-id",
         HeaderValue::from_str(&md5).expect("md5 contains non ascii code"),
     );
+
     headers.remove(CONTENT_LENGTH);
-    let resp_bs = ret_resp.bytes().await.expect("read resp body failed");
-    let body: TaggedBody = (&resp_bs).into();
+    let body = ret_resp.bytes().await.expect("read resp body failed");
 
     let cached = CacheObject {
         request: req_parts,
-        response_body: body,
+        response_body: body.clone(),
         response_headers: headers.clone(),
         status_code,
         config: Default::default(),
     };
     cached.add_record_by_md5(md5);
 
+    // step 5. send response back to client
     headers.insert("x-rockserver", HeaderValue::from_static("miss"));
-    make_resp(headers, status_code, resp_bs)
+    make_resp(headers, status_code, body)
 }
 
 fn make_resp(headers: HeaderMap, status_code: StatusCode, body: Bytes) -> Response<Body> {

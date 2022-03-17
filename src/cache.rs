@@ -62,7 +62,8 @@ pub struct CacheReqParts {
 
     pub path: String,
 
-    pub body: TaggedBody,
+    #[serde(with = "crate::serde_cache::bytes")]
+    pub body: Bytes,
 }
 
 impl CacheReqParts {
@@ -84,7 +85,9 @@ pub struct CacheConfig {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct CacheObject {
     pub request: CacheReqParts,
-    pub response_body: TaggedBody,
+
+    #[serde(with = "crate::serde_cache::bytes")]
+    pub response_body: Bytes,
 
     #[serde(with = "crate::serde_cache::header_map")]
     pub response_headers: HeaderMap<HeaderValue>,
@@ -103,7 +106,6 @@ impl CacheObject {
         let query = req.uri().path_and_query().map(Clone::clone);
         let path = req.uri().path().to_string();
         let body = to_bytes(req.body_mut()).await.expect("read body failed");
-        let body = (&body).into();
         let req_parts = CacheReqParts {
             method,
             headers,
