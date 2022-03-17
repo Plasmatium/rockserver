@@ -106,23 +106,23 @@ pub mod query {
 }
 
 pub mod bytes {
-    use std::str::FromStr;
-
-    use axum::http::uri::PathAndQuery;
     use bytes::Bytes;
-    use serde::{de::Error as _, Deserialize, Deserializer, Serialize, Serializer};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    use crate::cache::TaggedBody;
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<Bytes, D::Error>
     where
         D: Deserializer<'de>,
     {
-        todo!();
+        let tagged_body = TaggedBody::deserialize(deserializer)?;
+        Ok(Bytes::from(&tagged_body))
     }
 
     pub fn serialize<S>(value: &Bytes, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: Serializer,
     {
-        todo!();
+        TaggedBody::from(value).serialize(serializer)
     }
 }

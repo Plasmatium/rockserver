@@ -5,7 +5,7 @@ use hyper::{header::CONTENT_LENGTH, Body, HeaderMap, Request, StatusCode};
 use reqwest::Client;
 
 use crate::{
-    cache::{CacheObject, CacheReqParts, TaggedBody},
+    cache::{CacheObject, CacheReqParts},
     config::Config,
 };
 use lazy_static::lazy_static;

@@ -70,8 +70,9 @@ impl CacheReqParts {
     pub fn get_md5(&self) -> String {
         let method_bs: &[u8] = self.method.as_str().as_ref();
         let path: &[u8] = self.path.as_str().as_ref();
+        let query: &[u8] = self.query.as_ref().map_or(&[], |q| q.as_str().as_ref());
         let body: &[u8] = self.body.as_ref();
-        let all = [method_bs, path, body].concat();
+        let all = [method_bs, path, query, body].concat();
         let digest = md5::compute(&all);
         format!("{:x}", digest)
     }
@@ -98,9 +99,7 @@ pub struct CacheObject {
 }
 
 impl CacheObject {
-    pub async fn find_by_req(
-        req: &mut Request<Body>,
-    ) -> (Option<Self>, CacheReqParts, String) {
+    pub async fn find_by_req(req: &mut Request<Body>) -> (Option<Self>, CacheReqParts, String) {
         let method = req.method().clone();
         let headers = req.headers().clone();
         let query = req.uri().path_and_query().map(Clone::clone);
