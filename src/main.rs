@@ -1,7 +1,7 @@
+mod cache;
+mod cache_api;
 mod config;
 mod proxy;
-mod cache_api;
-mod cache;
 mod serde_cache;
 
 use std::{net::SocketAddr, sync::Arc};
@@ -16,9 +16,9 @@ use tracing::info;
 use tracing_subscriber::{util::SubscriberInitExt, EnvFilter, FmtSubscriber};
 
 use crate::{
+    cache_api::{delete_cache_json, get_cache_json, post_cache_json},
     config::Config,
     proxy::proxy_handler,
-    cache_api::{get_cache_json, post_cache_json},
 };
 
 #[tokio::main]
@@ -38,7 +38,9 @@ async fn main() -> Result<()> {
         .layer(Extension(Arc::new(config)))
         .route(
             "/rockserver/cache.json",
-            get(get_cache_json).post(post_cache_json),
+            get(get_cache_json)
+                .post(post_cache_json)
+                .delete(delete_cache_json),
         );
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));

@@ -24,3 +24,9 @@ pub async fn post_cache_json(Json(new_cache): Json<DashMap<String, CacheObject>>
     replace_global_cache(&new_cache);
     StatusCode::ACCEPTED
 }
+
+pub async fn delete_cache_json() -> http::StatusCode {
+    let cache = &GLOBAL_CACHE.0;
+    cache.clear();
+    StatusCode::ACCEPTED
+}
