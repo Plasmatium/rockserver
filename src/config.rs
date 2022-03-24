@@ -1,9 +1,12 @@
+use hyper::StatusCode;
 use serde::Deserialize;
 use std::fs;
 
 #[derive(Clone, Debug, Deserialize)]
 pub struct Config {
     pub proxy: Proxy,
+    #[serde(with = "crate::serde_cache::status_code")]
+    pub status_code_threshold: StatusCode
 }
 
 #[derive(Clone, Debug, Deserialize)]

@@ -70,11 +70,13 @@ pub async fn proxy_handler(
     // step 4. store the response from the remote
     let ret_resp = ret_resp.unwrap();
     let status_code = ret_resp.status();
-    let mut headers = ret_resp.headers().clone();
-    headers.insert(
-        "x-rockserver-id",
-        HeaderValue::from_str(&md5).expect("md5 contains non ascii code"),
-    );
+    if status_code < config.as_ref().status_code_threshold {
+        let mut headers = ret_resp.headers().clone();
+        headers.insert(
+            "x-rockserver-id",
+            HeaderValue::from_str(&md5).expect("md5 contains non ascii code"),
+        );
+    }
 
     headers.remove(CONTENT_LENGTH);
     let body = ret_resp.bytes().await.expect("read resp body failed");
