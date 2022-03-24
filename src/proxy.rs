@@ -70,25 +70,25 @@ pub async fn proxy_handler(
     // step 4. store the response from the remote
     let ret_resp = ret_resp.unwrap();
     let status_code = ret_resp.status();
+    let mut headers = ret_resp.headers().clone();
+    let body = ret_resp.bytes().await.expect("read resp body failed");
     if status_code < config.as_ref().status_code_threshold {
-        let mut headers = ret_resp.headers().clone();
         headers.insert(
             "x-rockserver-id",
             HeaderValue::from_str(&md5).expect("md5 contains non ascii code"),
         );
+
+        headers.remove(CONTENT_LENGTH);
+
+        let cached = CacheObject {
+            request: req_parts,
+            response_body: body.clone(),
+            response_headers: headers.clone(),
+            status_code,
+            config: Default::default(),
+        };
+        cached.add_record_by_md5(md5);
     }
-
-    headers.remove(CONTENT_LENGTH);
-    let body = ret_resp.bytes().await.expect("read resp body failed");
-
-    let cached = CacheObject {
-        request: req_parts,
-        response_body: body.clone(),
-        response_headers: headers.clone(),
-        status_code,
-        config: Default::default(),
-    };
-    cached.add_record_by_md5(md5);
 
     // step 5. send response back to client
     headers.insert("x-rockserver", HeaderValue::from_static("miss"));
