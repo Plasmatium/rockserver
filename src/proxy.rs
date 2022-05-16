@@ -1,12 +1,10 @@
-use std::sync::Arc;
-
-use axum::{body::Bytes, extract::Extension, http::HeaderValue, response::Response};
+use axum::{body::Bytes, http::HeaderValue, response::Response};
 use hyper::{header::CONTENT_LENGTH, Body, HeaderMap, Request, StatusCode};
 use reqwest::Client;
 
 use crate::{
     cache::{CacheObject, CacheReqParts},
-    config::Config,
+    config::{Config, G_CONFIG},
 };
 use lazy_static::lazy_static;
 
@@ -16,27 +14,31 @@ lazy_static! {
 
 /// Proxy the resquest and store the response. The stored response will be sent immedietly next time
 /// if the request matched.
+/// step 0. if not enabled, then just proxy pass
 /// step 1. construct the request parts and caculated the md5 for store key
 /// step 2. return if request matched
 /// step 3. else proxy the request to remote
 /// step 4. store the response from the remote
 /// step 5. send response back to client
 pub async fn proxy_handler(
-    Extension(config): Extension<Arc<Config>>,
     mut req: Request<Body>,
 ) -> Response<Body> {
+    let config: &Config;
+    unsafe{ config = &G_CONFIG }
     // step 1. construct the request parts and caculated the md5 for store key
     let (cached, req_parts, md5) = CacheObject::find_by_req(&mut req).await;
-    if let Some(CacheObject {
-        response_body,
-        mut response_headers,
-        status_code,
-        ..
-    }) = cached
-    {
-        // step 2. return if request matched
-        response_headers.insert("x-rockserver", HeaderValue::from_static("hit"));
-        return make_resp(response_headers, status_code, response_body);
+    if config.enabled == Some(true) {
+        if let Some(CacheObject {
+            response_body,
+            mut response_headers,
+            status_code,
+            ..
+        }) = cached
+        {
+            // step 2. return if request matched
+            response_headers.insert("x-rockserver", HeaderValue::from_static("hit"));
+            return make_resp(response_headers, status_code, response_body);
+        }
     }
 
     // step 3. else proxy the request to remote
@@ -46,9 +48,9 @@ pub async fn proxy_handler(
         ..
     } = req_parts;
     let mut uri_parts = req.uri().clone().into_parts();
-    let Config { proxy, .. } = config.as_ref();
-    uri_parts.scheme = Some(proxy.scheme.as_str().try_into().unwrap());
-    uri_parts.authority = Some(proxy.authority.as_str().try_into().unwrap());
+    let uri = config.get_uri().expect("invalid proxy uri");
+    uri_parts.scheme = uri.scheme().cloned();
+    uri_parts.authority = uri.authority().cloned();
     *req.uri_mut() = uri_parts.try_into().unwrap();
     let mut headers = headers.clone();
     headers.remove("host");
@@ -72,7 +74,13 @@ pub async fn proxy_handler(
     let status_code = ret_resp.status();
     let mut headers = ret_resp.headers().clone();
     let body = ret_resp.bytes().await.expect("read resp body failed");
-    if status_code < config.as_ref().status_code_threshold {
+    let mut status_code_threshold = StatusCode::from_u16(599).unwrap();
+    if let Some(threshold) = config.status_code_threshold {
+        if let Ok(valid_status_code) = StatusCode::from_u16(threshold) {
+            status_code_threshold = valid_status_code;
+        }
+    }
+    if status_code < status_code_threshold {
         headers.insert(
             "x-rockserver-id",
             HeaderValue::from_str(&md5).expect("md5 contains non ascii code"),

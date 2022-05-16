@@ -4,12 +4,11 @@ mod config;
 mod proxy;
 mod serde_cache;
 
-use std::{net::SocketAddr, sync::Arc};
+use std::net::SocketAddr;
 
 use anyhow::Result;
 use axum::{
-    extract::Extension,
-    routing::{any, get},
+    routing::{any, get, post},
     Router,
 };
 use tracing::info;
@@ -17,7 +16,7 @@ use tracing_subscriber::{util::SubscriberInitExt, EnvFilter, FmtSubscriber};
 
 use crate::{
     cache_api::{delete_cache_json, get_cache_json, post_cache_json},
-    config::Config,
+    config::{Config, config_handler, G_CONFIG},
     proxy::proxy_handler,
 };
 
@@ -32,16 +31,19 @@ async fn main() -> Result<()> {
     let fname = "config.yaml";
     let config = Config::from_file(fname);
     info!("config loaded, path: {fname}, content:\n{:?}", config);
+    unsafe {
+        G_CONFIG.apply(config);
+    }
     let app = Router::new()
-        .route("/about", get(about_handler))
+        .route("/rockserver/about", get(about_handler))
         .fallback(any(proxy_handler))
-        .layer(Extension(Arc::new(config)))
         .route(
             "/rockserver/cache.json",
             get(get_cache_json)
                 .post(post_cache_json)
                 .delete(delete_cache_json),
-        );
+        )
+        .route("/rockserver/config", post(config_handler));
 
     let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
     info!("listening on {addr}");
