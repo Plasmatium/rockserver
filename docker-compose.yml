@@ -1,0 +1,11 @@
+version: "3"
+services:
+  rockServer:
+    image: ubuntu:20.04
+    ports:
+      - 3000:3000
+    volumes:
+      - ./target/release/rockserver:/app/rockserver
+      - ./config.yaml:/app/config.yaml
+    working_dir: /app/
+    entrypoint: "sh -c 'ulimit -n 32768 && LOG_LEVEL=INFO /app/rockserver'"
